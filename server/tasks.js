@@ -1,11 +1,10 @@
 import express, { Router } from 'express';
 import fs from 'node:fs';
 import path from 'node:path';
-import { db, getSettings, bad, text, oneOf, idParam, parseJson, FILES_DIR } from './db.js';
+import { db, getSettings, bad, text, oneOf, idParam, parseJson, FILES_DIR, activityTypes, defaultCategory } from './db.js';
 import { nowLocal, today, addDays, addMonths, parseLocal, isDate, isTime, isDateTime, weekStart, daysBetween } from './time.js';
 
 export const PRIORITIES = ['Critical', 'High', 'Medium', 'Low'];
-export const CATEGORIES = ['Academics', 'Research', 'Projects', 'Personal', 'Learning', 'Other'];
 export const STATUSES = ['Not Started', 'In Progress', 'Completed'];
 export const PRIO_RANK = { Critical: 0, High: 1, Medium: 2, Low: 3 };
 
@@ -115,7 +114,7 @@ export function clean(body, { create = false } = {}) {
     out.due_at = body.due_at || null;
   }
   if ('priority' in body) out.priority = oneOf(body.priority, PRIORITIES, 'Priority');
-  if ('category' in body) out.category = oneOf(body.category, CATEGORIES, 'Category');
+  if ('category' in body) out.category = oneOf(body.category, activityTypes().map((t) => t.name), 'Activity type');
   if ('status' in body) out.status = oneOf(body.status, STATUSES, 'Status');
   if ('project_id' in body) {
     if (body.project_id == null || body.project_id === '') out.project_id = null;
@@ -221,7 +220,7 @@ r.post('/', (req, res) => {
     ...t,
     notes: t.notes ?? '',
     priority,
-    category: t.category ?? 'Other',
+    category: t.category ?? defaultCategory(),
     status: t.status ?? 'Not Started',
     links: t.links ?? '[]',
     notify_whatsapp: t.notify_whatsapp ?? (PRIO_RANK[priority] <= PRIO_RANK[s.whatsapp_min_priority] ? 1 : 0),

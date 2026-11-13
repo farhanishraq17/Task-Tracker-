@@ -29,9 +29,11 @@ Everything is stored in a single SQLite file on your disk. No accounts, no cloud
 
 | Area | Highlights |
 |---|---|
-| **Dashboard** | Greeting with today's date, today's tasks (drag to reorder), overdue "needs attention" list, upcoming 7 days, weekly goal, streak, quick-add, recently saved resources. |
+| **Home** | Pixel-art landing page: typed welcome with your name, live clock in your timezone, a blinking mascot with a status bubble, quick-add, tiles into every section, today's progress and streak. |
+| **Dashboard** | Today's date and progress bar, today's tasks (drag to reorder), overdue "needs attention" list, upcoming 7 days, quick-add. |
 | **My Tasks** | Views: Today · Next 7 days · This month · Overdue · No date · Completed · All. Search and filters (priority, category, project). Grouped by day. |
-| **Task details** | Title, notes, scheduled day, start time, deadline, priority (Critical/High/Medium/Low), category, status, project, repeat rules (daily/weekly/monthly/custom), per-task reminders, subtasks, links, file attachments, WhatsApp opt-in. Duplicate, delete, reschedule. |
+| **Task details** | Title, notes, scheduled day, start time, deadline, priority (Critical/High/Medium/Low), activity type, status, project, repeat rules (daily/weekly/monthly/custom), per-task reminders, subtasks, links, file attachments, WhatsApp opt-in. Duplicate, delete, reschedule. |
+| **Activity types** | Your own list of activity types, each with a name and a color (Settings → Activity types). Colors show on every task, calendar pill and chart. Renaming keeps tasks attached; removing a type moves its tasks to "Other". |
 | **Calendar** | Month / week / day views. Tasks, deadlines, milestones and project target dates. Drag a task to another day to reschedule. Overloaded days are flagged. |
 | **Projects** | Long-term goals with description, start/target dates, status, color, milestones, linked tasks and resources, automatic progress %. |
 | **Resource Library** | Save YouTube videos & playlists, papers, articles, docs, courses. Automatic title/thumbnail/description fetch, collections, tags, status (To Watch/To Read/In Progress/Completed), importance, search, link to a task or project. |
@@ -179,7 +181,7 @@ Open any task to turn it into subtasks, attach files, set repeat rules or custom
 * **Manual backup / restore:** Settings → Data. Restore replaces all current data and takes a *pre-restore* safety backup first. Uploaded files are validated (`PRAGMA integrity_check`) before anything is replaced.
 * **Export:** full JSON (projects, milestones, tasks, subtasks, collections, resources, settings) and CSV for tasks and resources.
 * **Import:** merges a JSON export. Rows that already exist (same title and creation time, same collection name, same resource URL) are skipped, so importing twice does not duplicate anything. An invalid row aborts the whole import with a message naming the task.
-* **Timezone:** all dates are stored as local wall-clock values in your configured timezone (default `Asia/Dhaka`), and the server process runs in that timezone. Change it in Settings.
+* **Timezone:** all dates are stored as local wall-clock values in your configured timezone, which defaults to this PC's clock (Asia/Dhaka on a Bangladesh-configured Windows), and the server process runs in that timezone. Change it in Settings.
 
 ---
 
@@ -199,11 +201,12 @@ server/               Node.js (ESM) + Express 5, no build step
   notify.js           browser (SSE), Windows toast (PowerShell/WinRT), email (nodemailer), WhatsApp (Meta/Twilio)
   time.js             wall-clock date helpers
   test.js             integration tests (node:test)
-client/               React 19 + Vite, plain CSS (no UI framework)
+client/               React 19 + Vite, plain CSS (pixel design system, no UI framework)
+  public/fonts/       bundled pixel fonts (Pixelify Sans, Silkscreen, VT323 — OFL) so the UI works offline
   src/App.jsx         shell, sidebar, hash routing, live reminders
-  src/store.jsx       app state, data hook, mutations
-  src/pages/          Dashboard · Tasks · Calendar · Projects · Resources · Insights · Settings
-  src/components/     TaskItem · TaskList (drag & drop) · TaskEditor · QuickAdd · ui primitives
+  src/store.jsx       app state, data hook, mutations, activity-type colors
+  src/pages/          Home · Dashboard · Tasks · Calendar · Projects · Resources · Insights · Settings
+  src/components/     TaskItem · TaskList (drag & drop) · TaskEditor · QuickAdd · pixel.jsx (sprites, mascot, pixelated thumbnails, typewriter, clock, bars) · ui primitives (pixel icons)
   src/lib/            dates.js, quickparse.js (+ tests)
 start.bat · start-background.vbs · stop.bat
 ```
@@ -283,5 +286,7 @@ dashboard/insights/calendar, the reminder engine (dedupe, re-arm, stale skipping
 | Persistent SQLite storage, backup/restore, JSON/CSV export, JSON import | ✅ |
 | Asia/Dhaka timezone handling | ✅ configurable |
 | Light & dark themes, responsive layout | ✅ |
+| Pixel-art interface with animations, personal home page | ✅ bundled fonts, stepped borders, mascot, stepped motion |
+| User-defined activity types with colors | ✅ Settings → Activity types |
 | Windows startup script | ✅ `start.bat`, `start-background.vbs`, `stop.bat` |
 | Tests | ✅ `npm test` |

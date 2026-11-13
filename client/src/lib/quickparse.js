@@ -4,7 +4,7 @@
 const WEEKDAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 const MONTHS = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
 const PRIORITY = { critical: 'Critical', crit: 'Critical', urgent: 'Critical', high: 'High', medium: 'Medium', med: 'Medium', low: 'Low' };
-const CATEGORY = { academic: 'Academics', academics: 'Academics', research: 'Research', project: 'Projects', projects: 'Projects', personal: 'Personal', learning: 'Learning', other: 'Other' };
+export const DEFAULT_CATEGORIES = ['Academics', 'Research', 'Projects', 'Personal', 'Learning', 'Other'];
 
 const pad = (n) => String(n).padStart(2, '0');
 const ymd = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -16,7 +16,8 @@ const MONTH_RE = '(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)
 const PREP = '(?:\\b(?:by|on|due|before|until|till|for)\\s+)?';
 const END = '(?=[\\s,.!?])';
 
-export function parseQuickAdd(input, { today, defaultDueTime = '18:00' } = {}) {
+/** `categories` = the user's activity type names; "#res" matches "Research" by prefix (case-insensitive). */
+export function parseQuickAdd(input, { today, defaultDueTime = '18:00', categories = DEFAULT_CATEGORIES } = {}) {
   today ||= ymd(new Date());
   const raw = String(input ?? '').trim();
   let text = ` ${raw} `;
@@ -30,7 +31,13 @@ export function parseQuickAdd(input, { today, defaultDueTime = '18:00' } = {}) {
   };
 
   eat(/\s!(critical|crit|urgent|high|medium|med|low)\b/i, (_, p) => (out.priority = PRIORITY[p.toLowerCase()]));
-  eat(/\s#(academics?|research|projects?|personal|learning|other)\b/i, (_, c) => (out.category = CATEGORY[c.toLowerCase()]));
+  eat(/\s#([\p{L}\p{N}_-]+)/u, (_, tag) => {
+    const t = tag.toLowerCase();
+    const match = categories.find((c) => c.toLowerCase() === t) || categories.find((c) => c.toLowerCase().startsWith(t));
+    if (!match) return false;
+    out.category = match;
+    return true;
+  });
 
   let time = null;
   let timePrep = null;

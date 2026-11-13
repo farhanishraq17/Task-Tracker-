@@ -2,7 +2,9 @@ import { useEffect } from 'react';
 import { AppProvider, useApp, useHash } from './store.jsx';
 import { api } from './api.js';
 import { Icon } from './components/ui.jsx';
+import { Sprite } from './components/pixel.jsx';
 import TaskEditor from './components/TaskEditor.jsx';
+import Home from './pages/Home.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import Tasks from './pages/Tasks.jsx';
 import Calendar from './pages/Calendar.jsx';
@@ -12,14 +14,17 @@ import Insights from './pages/Insights.jsx';
 import Settings from './pages/Settings.jsx';
 
 const NAV = [
-  ['/', 'Dashboard', 'dashboard'],
+  ['/', 'Home', 'home'],
+  ['/dashboard', 'Dashboard', 'dashboard'],
   ['/tasks', 'My Tasks', 'tasks'],
   ['/calendar', 'Calendar', 'calendar'],
   ['/projects', 'Projects', 'projects'],
-  ['/resources', 'Resource Library', 'resources'],
+  ['/resources', 'Library', 'resources'],
   ['/insights', 'Insights', 'insights'],
   ['/settings', 'Settings', 'settings'],
 ];
+
+const LOGO = ['########', '#......#', '#.....##', '#.#..#.#', '#.##.#.#', '#..#...#', '#......#', '########'];
 
 export default function App() {
   return <AppProvider><Shell /></AppProvider>;
@@ -48,11 +53,11 @@ function Shell() {
     return () => es.close();
   }, [toast, openTask]);
 
-  if (!settings && !error) return <div className="loading-screen">Loading…</div>;
+  if (!settings && !error) return <div className="loading-screen"><span className="loading-text">Loading</span></div>;
 
   let page;
   if (path.startsWith('/projects/')) page = <ProjectDetail id={Number(path.split('/')[2])} />;
-  else page = { '/': <Dashboard />, '/tasks': <Tasks />, '/calendar': <Calendar />, '/projects': <Projects />, '/resources': <Resources />, '/insights': <Insights />, '/settings': <Settings /> }[path] || <Dashboard />;
+  else page = { '/': <Home />, '/dashboard': <Dashboard />, '/tasks': <Tasks />, '/calendar': <Calendar />, '/projects': <Projects />, '/resources': <Resources />, '/insights': <Insights />, '/settings': <Settings /> }[path] || <Home />;
 
   return (
     <div className="app">
@@ -74,7 +79,7 @@ function Sidebar({ path, settings, reloadSettings }) {
   };
   return (
     <aside className="sidebar">
-      <div className="brand"><div className="logo"><Icon name="check" /></div><span>Command Center</span></div>
+      <a className="brand" href="#/"><Sprite rows={LOGO} size={28} className="logo" title="Command Center" /><span>Command<br />Center</span></a>
       <nav className="nav">
         {NAV.map(([href, label, icon]) => (
           <a key={href} href={`#${href}`} className={(href === '/' ? path === '/' : path.startsWith(href)) ? 'active' : ''}>

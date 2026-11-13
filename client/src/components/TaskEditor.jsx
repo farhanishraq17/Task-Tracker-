@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Modal, Field, Select, Icon, Confirm, PRIORITIES, CATEGORIES, STATUSES } from './ui.jsx';
+import { Modal, Field, Select, Icon, Confirm, PRIORITIES, STATUSES } from './ui.jsx';
 import { useApp, useMutate } from '../store.jsx';
 import { api } from '../api.js';
 import { relDate, fmtBytes, offsetLabel, REMINDER_PRESETS } from '../lib/dates.js';
@@ -26,12 +26,13 @@ export function ReminderChips({ value, defaults = [], onChange, allowDefault = t
 }
 
 const blank = (draft, settings) => ({
-  title: '', notes: '', scheduled_date: null, start_time: null, due_at: null, priority: settings?.default_priority || 'Medium', category: 'Other',
+  title: '', notes: '', scheduled_date: null, start_time: null, due_at: null, priority: settings?.default_priority || 'Medium',
+  category: (settings?.activity_types || []).find((t) => t.name === 'Other')?.name || settings?.activity_types?.[0]?.name || 'Other',
   status: 'Not Started', project_id: null, recurrence: null, reminders: null, links: [], notify_whatsapp: null, subtasks: [], attachments: [], ...draft,
 });
 
 export default function TaskEditor({ target, onClose }) {
-  const { settings, today, toast } = useApp();
+  const { settings, today, toast, types, typeColor } = useApp();
   const mutate = useMutate();
   const isNew = !target.id;
   const [form, setForm] = useState(isNew ? blank(target.draft, settings) : null);
@@ -111,7 +112,12 @@ export default function TaskEditor({ target, onClose }) {
           <Field label="Priority"><Select value={form.priority} onChange={(v) => set({ priority: v })} options={PRIORITIES} /></Field>
         </div>
         <div className="grid grid-3">
-          <Field label="Category"><Select value={form.category} onChange={(v) => set({ category: v })} options={CATEGORIES} /></Field>
+          <Field label="Activity type">
+            <div className="row" style={{ gap: 8 }}>
+              <i className="type-dot lg" style={{ background: typeColor(form.category) }} />
+              <Select value={form.category} onChange={(v) => set({ category: v })} options={[...new Set([...types.map((t) => t.name), form.category])].filter(Boolean)} />
+            </div>
+          </Field>
           <Field label="Project"><Select value={form.project_id ?? ''} onChange={(v) => set({ project_id: v ? Number(v) : null })} placeholder="No project" options={projects.filter((p) => p.status !== 'Archived' || p.id === form.project_id).map((p) => [p.id, p.name])} /></Field>
           <Field label="Repeat"><Select value={rec?.freq || ''} onChange={setRec} placeholder="Does not repeat" options={[['daily', 'Daily'], ['weekly', 'Weekly'], ['monthly', 'Monthly'], ['custom', 'Custom interval']]} /></Field>
         </div>

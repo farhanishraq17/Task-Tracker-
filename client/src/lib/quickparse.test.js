@@ -46,6 +46,13 @@ test('text without dates stays intact; bare numbers are not times', () => {
   assert.equal(p('Read chapter 5').title, 'Read chapter 5');
 });
 
+test('#tag matches the configured activity types by prefix', () => {
+  const r = parseQuickAdd('Write abstract #thes', { today: T, categories: ['Thesis', 'Gym', 'Other'] });
+  assert.equal(r.category, 'Thesis');
+  assert.equal(r.title, 'Write abstract');
+  assert.equal(parseQuickAdd('Run #nothing', { today: T, categories: ['Thesis'] }).title, 'Run #nothing', 'unknown tags stay in the title');
+});
+
 test('time only defaults to today; D/M dates', () => {
   const r = p('Standup 9:30am');
   assert.equal(r.due_at, '2026-11-13T09:30');

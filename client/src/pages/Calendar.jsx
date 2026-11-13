@@ -10,7 +10,7 @@ import { addDays, addMonths, weekStart, monthGrid, fmtMonth, fmtLong, fmtShort, 
 const HEAVY = 5; // open tasks on one day that flag it as overloaded
 
 export default function Calendar() {
-  const { today, openTask } = useApp();
+  const { today, openTask, types, typeColor } = useApp();
   const mutate = useMutate();
   const td = today();
   const [view, setView] = useState('month');
@@ -27,11 +27,11 @@ export default function Calendar() {
 
   const byDay = useMemo(() => {
     const m = new Map();
-    const add = (d, item) => { if (!m.has(d)) m.set(d, { tasks: [], deadlines: [], milestones: [], projects: [] }); m.get(d)[item.kind].push(item.v); };
-    for (const t of data?.tasks || []) add(t.scheduled_date || t.due_at.slice(0, 10), { kind: 'tasks', v: t });
-    for (const t of data?.deadlines || []) add(t.due_at.slice(0, 10), { kind: 'deadlines', v: t });
-    for (const ms of data?.milestones || []) add(ms.due_date, { kind: 'milestones', v: ms });
-    for (const p of data?.projects || []) add(p.target_date, { kind: 'projects', v: p });
+    const add = (d, kind, v) => { if (!m.has(d)) m.set(d, { tasks: [], deadlines: [], milestones: [], projects: [] }); m.get(d)[kind].push(v); };
+    for (const t of data?.tasks || []) add(t.scheduled_date || t.due_at.slice(0, 10), 'tasks', t);
+    for (const t of data?.deadlines || []) add(t.due_at.slice(0, 10), 'deadlines', t);
+    for (const ms of data?.milestones || []) add(ms.due_date, 'milestones', ms);
+    for (const p of data?.projects || []) add(p.target_date, 'projects', p);
     return m;
   }, [data]);
   const get = (d) => byDay.get(d) || { tasks: [], deadlines: [], milestones: [], projects: [] };
@@ -39,7 +39,6 @@ export default function Calendar() {
   const step = (n) => setAnchor(view === 'month' ? addMonths(anchor, n) : addDays(anchor, view === 'week' ? 7 * n : n));
   const title = view === 'month' ? fmtMonth(anchor) : view === 'week' ? `${fmtDay(range.from)} – ${fmtShort(range.to)}` : fmtLong(anchor);
 
-  // Drag a task pill onto a day to reschedule it.
   const dragProps = (t) => ({
     draggable: true,
     onDragStart: (e) => { setDragId(t.id); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', String(t.id)); },
@@ -58,35 +57,32 @@ export default function Calendar() {
     },
   });
 
-  const Pill = ({ t, deadline }) => (
-    <div className={`pill ${t.status === 'Completed' ? 'done' : ''} ${deadline ? 'deadline' : ''} ${dragId === t.id ? 'dragging' : ''}`} style={{ borderLeftColor: `var(--p-${t.priority.toLowerCase()})` }}
-      title={`${t.title}${t.due_at ? ` · due ${fmtTime(t.due_at.slice(11))}` : ''}`} onClick={(e) => { e.stopPropagation(); openTask(t.id); }} {...dragProps(t)}>
-      {deadline && <Icon name="flag" style={{ width: 10, height: 10 }} />}
-      {t.due_at && !deadline && <span className="muted" style={{ flex: 'none' }}>{fmtTime(t.due_at.slice(11)).replace(/\s?(AM|PM)/i, (m) => m.trim().toLowerCase())}</span>}
+  const Pill = ({ t, deadline, time }) => (
+    <div className={`pill ${t.status === 'Completed' ? 'done' : ''} ${deadline ? 'deadline' : ''} ${dragId === t.id ? 'dragging' : ''}`} style={{ '--type': typeColor(t.category) }}
+      title={`${t.title} · ${t.category}${t.due_at ? ` · due ${fmtTime(t.due_at.slice(11))}` : ''}`} onClick={(e) => { e.stopPropagation(); openTask(t.id); }} {...dragProps(t)}>
+      {deadline && <Icon name="flag" />}
+      {time && t.due_at && <span className="pill-time">{fmtTime(t.due_at.slice(11))}</span>}
       <span>{t.title}</span>
     </div>
   );
-  const Milestone = ({ m }) => <div className="pill milestone" title={`${m.project_name} · milestone`}><Icon name="diamond" style={{ width: 10, height: 10 }} /><span>{m.title}</span></div>;
-  const ProjectDue = ({ p }) => <a className="pill project" href={`#/projects/${p.id}`} title="Project target date" onClick={(e) => e.stopPropagation()}><Icon name="target" style={{ width: 10, height: 10 }} /><span>{p.name} due</span></a>;
+  const Milestone = ({ m }) => <div className="pill milestone" title={`${m.project_name} · milestone`}><Icon name="diamond" /><span>{m.title}</span></div>;
+  const ProjectDue = ({ p }) => <a className="pill project" href={`#/projects/${p.id}`} title="Project target date" onClick={(e) => e.stopPropagation()}><Icon name="target" /><span>{p.name} due</span></a>;
 
   return (
     <>
       <div className="page-head">
-        <div><h1>Calendar</h1><div className="sub">Drag a task onto another day to reschedule it.</div></div>
+        <div><div className="lbl">Calendar</div><h1>{title}</h1><div className="sub">Drag a task onto another day to reschedule it.</div></div>
         <div className="actions">
+          <button className="icon-btn" onClick={() => step(-1)} aria-label="Previous"><Icon name="left" /></button>
+          <button className="btn btn-sm" onClick={() => setAnchor(td)}>Today</button>
+          <button className="icon-btn" onClick={() => step(1)} aria-label="Next"><Icon name="right" /></button>
           <Segmented value={view} onChange={setView} options={[['day', 'Day'], ['week', 'Week'], ['month', 'Month']]} />
         </div>
       </div>
-      <div className="cal-head">
-        <div className="row">
-          <button className="icon-btn" onClick={() => step(-1)} aria-label="Previous"><Icon name="left" /></button>
-          <button className="icon-btn" onClick={() => step(1)} aria-label="Next"><Icon name="right" /></button>
-          <h2>{title}</h2>
-        </div>
-        <div className="row">
-          <div className="legend"><span><i style={{ background: 'var(--p-high)' }} />Task (priority color)</span><span><i style={{ background: 'var(--accent)' }} />Milestone</span><span><i style={{ background: 'var(--success)' }} />Project target</span></div>
-          <button className="btn btn-sm" onClick={() => setAnchor(td)}>Today</button>
-        </div>
+      <div className="legend" style={{ marginBottom: 14 }}>
+        {types.map((t) => <span key={t.id}><i style={{ background: t.color }} />{t.name}</span>)}
+        <span><Icon name="diamond" style={{ color: 'var(--accent)' }} />Milestone</span>
+        <span><Icon name="target" style={{ color: 'var(--green)' }} />Project target</span>
       </div>
 
       <div className={loading && data ? 'fade' : ''}>
@@ -97,13 +93,13 @@ export default function Calendar() {
               const items = get(d);
               const openCount = items.tasks.filter((t) => t.status !== 'Completed').length;
               const all = [...items.milestones.map((m) => ({ k: 'm', v: m })), ...items.projects.map((p) => ({ k: 'p', v: p })), ...items.tasks.map((t) => ({ k: 't', v: t })), ...items.deadlines.map((t) => ({ k: 'd', v: t }))];
-              const shown = all.slice(0, 4);
+              const shown = all.slice(0, 3);
               return (
                 <div key={d} className={`cal-cell ${d.slice(0, 7) !== anchor.slice(0, 7) ? 'other' : ''} ${d === td ? 'today' : ''} ${dropDay === d ? 'drop' : ''}`} onClick={() => { setAnchor(d); setView('day'); }} {...dropProps(d)}>
                   <div className="top"><span className="day-n">{Number(d.slice(8))}</span>{openCount >= HEAVY && <span className="heavy" title={`${openCount} open tasks — consider rescheduling some`}><Icon name="alert" />{openCount}</span>}</div>
                   {shown.map((it) => it.k === 'm' ? <Milestone key={`m${it.v.id}`} m={it.v} /> : it.k === 'p' ? <ProjectDue key={`p${it.v.id}`} p={it.v} /> : <Pill key={`${it.k}${it.v.id}`} t={it.v} deadline={it.k === 'd'} />)}
                   {all.length > shown.length && <span className="more-n">+{all.length - shown.length} more</span>}
-                  <div className="cal-dots">{all.slice(0, 6).map((it, i) => <i key={i} style={{ background: it.k === 'm' ? 'var(--accent)' : it.k === 'p' ? 'var(--success)' : `var(--p-${it.v.priority?.toLowerCase() || 'medium'})` }} />)}</div>
+                  <div className="cal-dots">{all.slice(0, 6).map((it, i) => <i key={i} style={{ background: it.k === 'm' ? 'var(--accent)' : it.k === 'p' ? 'var(--green)' : typeColor(it.v.category) }} />)}</div>
                 </div>
               );
             })}
@@ -117,12 +113,11 @@ export default function Calendar() {
               const openCount = items.tasks.filter((t) => t.status !== 'Completed').length;
               return (
                 <div key={d} className={`week-col ${d === td ? 'today' : ''} ${dropDay === d ? 'drop' : ''}`} {...dropProps(d)}>
-                  <div className="wh" onClick={() => { setAnchor(d); setView('day'); }}><b>{weekdayShort(d)} {Number(d.slice(8))}</b>{openCount >= HEAVY ? <span className="heavy"><Icon name="alert" />{openCount} open</span> : <span>{openCount ? `${openCount} open` : ''}</span>}</div>
+                  <div className="wh" onClick={() => { setAnchor(d); setView('day'); }}><b>{weekdayShort(d)} {Number(d.slice(8))}</b>{openCount >= HEAVY ? <span className="heavy"><Icon name="alert" />{openCount}</span> : <span>{openCount || ''}</span>}</div>
                   {items.milestones.map((m) => <Milestone key={`m${m.id}`} m={m} />)}
                   {items.projects.map((p) => <ProjectDue key={`p${p.id}`} p={p} />)}
-                  {items.tasks.map((t) => <Pill key={t.id} t={t} />)}
-                  {items.deadlines.map((t) => <Pill key={`d${t.id}`} t={t} deadline />)}
-                  {!items.tasks.length && !items.milestones.length && !items.deadlines.length && !items.projects.length && <span className="muted small" style={{ padding: 4 }}>—</span>}
+                  {items.tasks.map((t) => <Pill key={t.id} t={t} time />)}
+                  {items.deadlines.map((t) => <Pill key={`d${t.id}`} t={t} deadline time />)}
                 </div>
               );
             })}
@@ -139,13 +134,13 @@ export default function Calendar() {
                   <div className="card-head"><h2><Icon name="flag" />Deadlines & milestones</h2></div>
                   <div className="stack" style={{ gap: 6 }}>
                     {items.milestones.map((m) => <div key={`m${m.id}`} className="row"><Icon name="diamond" style={{ color: 'var(--accent)' }} /><span className="grow">{m.title}</span><a href={`#/projects/${m.project_id}`} className="small">{m.project_name}</a></div>)}
-                    {items.projects.map((p) => <div key={`p${p.id}`} className="row"><Icon name="target" style={{ color: 'var(--success)' }} /><span className="grow">Project target: {p.name}</span><a href={`#/projects/${p.id}`} className="small">Open</a></div>)}
+                    {items.projects.map((p) => <div key={`p${p.id}`} className="row"><Icon name="target" style={{ color: 'var(--green)' }} /><span className="grow">Project target: {p.name}</span><a href={`#/projects/${p.id}`} className="small">Open</a></div>)}
                   </div>
                   {items.deadlines.length > 0 && <TaskList tasks={items.deadlines} />}
                 </section>
               )}
               <section className="card">
-                <div className="card-head"><h2>{fmtLong(anchor)} <span className="count">{items.tasks.filter((t) => t.status !== 'Completed').length} open</span></h2></div>
+                <div className="card-head"><h2>{fmtLong(anchor)}</h2><span className="count">{items.tasks.filter((t) => t.status !== 'Completed').length} open</span></div>
                 <TaskList tasks={items.tasks} onReorder={(ids) => mutate(() => api.tasks.reorder(ids))} showDate={false} emptyText="Nothing scheduled" emptyHint="Use the box above to plan this day." emptyIcon="calendar" />
               </section>
             </div>

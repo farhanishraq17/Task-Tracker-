@@ -6,13 +6,18 @@ import { parseQuickAdd } from '../lib/quickparse.js';
 import { relDate, fmtTime } from '../lib/dates.js';
 
 /** One-line task capture with natural-language dates. `defaults` are applied when nothing was typed for them. */
-export default function QuickAdd({ defaults = {}, placeholder = 'Add a task…  e.g. "Finish the experiments by Friday 5pm !high #research"', onCreated, autoFocus = false }) {
-  const { settings, today } = useApp();
+export default function QuickAdd({ defaults = {}, placeholder = 'Add a task…  e.g. “Finish the experiments by Friday 5pm !high #research”', onCreated, autoFocus = false }) {
+  const { settings, today, types, typeColor } = useApp();
   const mutate = useMutate();
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const td = today();
-  const parsed = useMemo(() => (text.trim() ? parseQuickAdd(text, { today: td, defaultDueTime: settings?.default_due_time || '18:00' }) : null), [text, td, settings?.default_due_time]);
+  const names = types.map((t) => t.name);
+  const namesKey = names.join('|');
+  const parsed = useMemo(
+    () => (text.trim() ? parseQuickAdd(text, { today: td, defaultDueTime: settings?.default_due_time || '18:00', categories: names.length ? names : undefined }) : null),
+    [text, td, settings?.default_due_time, namesKey], // eslint-disable-line react-hooks/exhaustive-deps
+  );
 
   const submit = async (e) => {
     e.preventDefault();
@@ -38,11 +43,10 @@ export default function QuickAdd({ defaults = {}, placeholder = 'Add a task…  
       </div>
       {hasHints && (
         <div className="quick-preview">
-          <span>Understood:</span>
           {parsed.scheduled_date && <span className="chip accent"><Icon name="calendar" />{relDate(parsed.scheduled_date, td)}{parsed.due_at && !parsed.start_time ? ` · due ${fmtTime(parsed.due_at.slice(11))}` : ''}</span>}
           {parsed.start_time && <span className="chip"><Icon name="clock" />{fmtTime(parsed.start_time)}</span>}
-          {parsed.priority && <span className="chip"><i className={`dot prio-${parsed.priority}`} />{parsed.priority}</span>}
-          {parsed.category && <span className="chip">{parsed.category}</span>}
+          {parsed.priority && <span className="chip"><Icon name="flag" className={`prio-${parsed.priority}`} />{parsed.priority}</span>}
+          {parsed.category && <span className="chip"><i className="type-dot" style={{ background: typeColor(parsed.category) }} />{parsed.category}</span>}
         </div>
       )}
     </form>

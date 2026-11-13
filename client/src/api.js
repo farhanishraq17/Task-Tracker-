@@ -72,6 +72,7 @@ export const api = {
     get: () => req('GET', '/api/settings'),
     update: (b) => req('PUT', '/api/settings', b),
     test: (channel) => req('POST', `/api/settings/test/${channel}`),
+    activityTypes: (list) => req('PUT', '/api/settings/activity-types', list),
     notifications: () => req('GET', '/api/settings/notifications'),
   },
 

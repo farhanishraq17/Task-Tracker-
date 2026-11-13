@@ -55,8 +55,11 @@ export function AppProvider({ children }) {
   }, [theme]);
 
   const tz = settings?.timezone;
+  const types = settings?.activity_types || [];
   const value = {
     settings, reloadSettings, error,
+    types,
+    typeColor: (name) => types.find((t) => t.name === name)?.color || 'var(--ink-3)',
     toasts, toast, dismiss,
     editing,
     openTask: useCallback((id) => setEditing({ id }), []),

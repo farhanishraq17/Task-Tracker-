@@ -125,14 +125,18 @@ let conn = open();
 // node:sqlite refuses undefined/boolean bindings; normalise them.
 const bind = (params) => params.map((v) => (v === undefined ? null : typeof v === 'boolean' ? (v ? 1 : 0) : v));
 
+let txDepth = 0;
 export const db = {
   all: (sql, ...p) => conn.prepare(sql).all(...bind(p)),
   get: (sql, ...p) => conn.prepare(sql).get(...bind(p)),
   run: (sql, ...p) => conn.prepare(sql).run(...bind(p)),
   exec: (sql) => conn.exec(sql),
+  /** Run fn inside a transaction. Nested calls join the outer transaction. */
   tx(fn) {
+    if (txDepth > 0) return fn();
+    txDepth++;
     conn.exec('BEGIN');
-    try { const r = fn(); conn.exec('COMMIT'); return r; } catch (e) { conn.exec('ROLLBACK'); throw e; }
+    try { const r = fn(); conn.exec('COMMIT'); return r; } catch (e) { conn.exec('ROLLBACK'); throw e; } finally { txDepth--; }
   },
   /** Consistent snapshot copy of the live database (SQLite VACUUM INTO). */
   backup(dest) { conn.exec(`VACUUM INTO '${dest.replace(/'/g, "''")}'`); },
@@ -140,9 +144,22 @@ export const db = {
   reopen() { conn = open(); },
 };
 
+const deviceTimezone = (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Dhaka'; } catch { return 'Asia/Dhaka'; } })();
+
+/** Activity types are user-defined (name + color) and edited in Settings; tasks store the type name. */
+export const DEFAULT_ACTIVITY_TYPES = [
+  { id: 'academics', name: 'Academics', color: '#2a78d6' },
+  { id: 'research', name: 'Research', color: '#5b4bd6' },
+  { id: 'projects', name: 'Projects', color: '#1baf7a' },
+  { id: 'personal', name: 'Personal', color: '#ff7a52' },
+  { id: 'learning', name: 'Learning', color: '#eda100' },
+  { id: 'other', name: 'Other', color: '#8a8699' },
+];
+
 export const DEFAULT_SETTINGS = {
-  display_name: '',
-  timezone: 'Asia/Dhaka',
+  display_name: 'Ishraq', // greeting name; change it in Settings
+  timezone: deviceTimezone, // follows this PC's clock unless changed in Settings
+  activity_types: DEFAULT_ACTIVITY_TYPES,
   default_priority: 'Medium',
   default_due_time: '18:00',
   default_reminders: [1440, 180, 30, 0], // minutes before deadline; 0 = at deadline; negative = after
@@ -170,6 +187,13 @@ export function saveSettings(patch) {
   });
   return getSettings();
 }
+
+export const activityTypes = () => {
+  const list = getSettings().activity_types;
+  return Array.isArray(list) && list.length ? list : DEFAULT_ACTIVITY_TYPES;
+};
+/** The type new tasks get when none is given: "Other" if it exists, else the first type. */
+export const defaultCategory = () => { const t = activityTypes(); return (t.find((x) => x.name === 'Other') || t[0]).name; };
 
 // ---- shared validation helpers (throw -> JSON 4xx via the error handler in index.js) ----
 export const bad = (message, status = 400) => Object.assign(new Error(message), { status });

@@ -1,0 +1,5 @@
+/* Bundled pixel fonts (SIL Open Font License), served from /fonts so the app works offline. */
+@font-face { font-family: 'Pixelify Sans'; font-style: normal; font-weight: 400 700; font-display: swap; src: url('/fonts/pixelify-sans-400-700.woff2') format('woff2'); }
+@font-face { font-family: 'Silkscreen'; font-style: normal; font-weight: 400; font-display: swap; src: url('/fonts/silkscreen-400.woff2') format('woff2'); }
+@font-face { font-family: 'Silkscreen'; font-style: normal; font-weight: 700; font-display: swap; src: url('/fonts/silkscreen-700.woff2') format('woff2'); }
+@font-face { font-family: 'VT323'; font-style: normal; font-weight: 400; font-display: swap; src: url('/fonts/vt323-400.woff2') format('woff2'); }

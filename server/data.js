@@ -96,6 +96,11 @@ export function importAll(data) {
         counts.milestones++;
       }
     }
+    // Activity types referenced by imported tasks but unknown here are added (nothing is silently remapped).
+    const types = getSettings().activity_types;
+    const known = new Set(types.map((x) => x.name));
+    const missing = [...new Set((data.tasks || []).map((t) => (typeof t?.category === 'string' ? t.category.trim().slice(0, 40) : '')).filter((c) => c && !known.has(c)))];
+    if (missing.length) saveSettings({ activity_types: [...types, ...missing.map((name, i) => ({ id: `imp${Date.now().toString(36)}${i}`, name, color: '#8a8699' }))] });
     const tmap = new Map();
     for (const t of data.tasks || []) {
       if (!t?.title) continue;

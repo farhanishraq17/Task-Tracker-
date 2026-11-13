@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useApp, useData, useHash, useMutate } from '../store.jsx';
 import { api } from '../api.js';
-import { Icon, Select, Empty, PRIORITIES, CATEGORIES } from '../components/ui.jsx';
+import { Icon, Select, Empty, PRIORITIES } from '../components/ui.jsx';
 import TaskList from '../components/TaskList.jsx';
 import QuickAdd from '../components/QuickAdd.jsx';
 import { monthStart, monthEnd, relDate } from '../lib/dates.js';
@@ -23,13 +23,14 @@ function groupTasks(tasks, tab, td) {
 }
 
 export default function Tasks() {
-  const { today, newTask } = useApp();
+  const { today, newTask, types } = useApp();
   const { params } = useHash();
   const [tab, setTab] = useState(params.tab || 'today');
   const [q, setQ] = useState('');
-  const [priority, setPriority] = useState('');
   const [category, setCategory] = useState('');
+  const [priority, setPriority] = useState('');
   const [project, setProject] = useState('');
+  const [more, setMore] = useState(false);
   const [projects, setProjects] = useState([]);
   const mutate = useMutate();
   const td = today();
@@ -44,29 +45,31 @@ export default function Tasks() {
   const { data, loading, error } = useData(() => api.tasks.list(query), [key]);
   const groups = useMemo(() => groupTasks(data || [], tab, td), [data, tab, td]);
   const openCount = data ? data.filter((t) => t.status !== 'Completed').length : 0;
+  const filtered = q || priority || category || project;
 
   return (
     <>
       <div className="page-head">
-        <div><h1>My Tasks</h1><div className="sub">{data ? `${openCount} open in this view` : ' '}</div></div>
+        <div><div className="lbl">Tasks</div><h1>My Tasks</h1><div className="sub">{data ? `${openCount} open in this view` : ' '}</div></div>
         <div className="actions"><button className="btn btn-primary" onClick={() => newTask(tab === 'today' ? { scheduled_date: td } : {})}><Icon name="plus" />New task</button></div>
       </div>
       <QuickAdd defaults={tab === 'today' ? { scheduled_date: td } : {}} />
       <div className="tabs" role="tablist">{TABS.map(([k, l]) => <button key={k} role="tab" aria-selected={tab === k} className={tab === k ? 'active' : ''} onClick={() => setTab(k)}>{l}</button>)}</div>
       <div className="filters">
-        <div className="search grow" style={{ maxWidth: 320 }}><Icon name="search" /><input className="input" placeholder="Search title or notes…" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search tasks" /></div>
-        <Select className="auto" value={priority} onChange={setPriority} options={PRIORITIES} placeholder="Any priority" />
-        <Select className="auto" value={category} onChange={setCategory} options={CATEGORIES} placeholder="Any category" />
-        <Select className="auto" value={project} onChange={setProject} options={projects.map((p) => [p.id, p.name])} placeholder="Any project" />
-        {(q || priority || category || project) && <button className="btn btn-ghost btn-sm" onClick={() => { setQ(''); setPriority(''); setCategory(''); setProject(''); }}>Clear</button>}
+        <div className="search grow" style={{ maxWidth: 300 }}><Icon name="search" /><input className="input" placeholder="Search…" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search tasks" /></div>
+        <Select className="auto" value={category} onChange={setCategory} options={types.map((t) => t.name)} placeholder="Any type" />
+        {more && <Select className="auto" value={priority} onChange={setPriority} options={PRIORITIES} placeholder="Any priority" />}
+        {more && <Select className="auto" value={project} onChange={setProject} options={projects.map((p) => [p.id, p.name])} placeholder="Any project" />}
+        <button className="btn btn-ghost btn-sm" onClick={() => setMore((m) => !m)}>{more ? 'Fewer filters' : 'More filters'}</button>
+        {filtered && <button className="btn btn-ghost btn-sm" onClick={() => { setQ(''); setPriority(''); setCategory(''); setProject(''); }}>Clear</button>}
       </div>
       <div className={`card ${loading && data ? 'fade' : ''}`}>
         {error && <div className="error-box">{error}</div>}
         {!data ? <div className="loading">Loading…</div>
-          : !data.length ? <Empty title={tab === 'overdue' ? 'Nothing overdue' : tab === 'completed' ? 'No completed tasks yet' : 'No tasks here'} hint={tab === 'today' ? 'Add one above — try "Read chapter 3 by 6pm".' : tab === 'overdue' ? 'You are on top of everything.' : undefined} icon={tab === 'overdue' ? 'sparkle' : 'inbox'} />
+          : !data.length ? <Empty title={tab === 'overdue' ? 'Nothing overdue' : tab === 'completed' ? 'No completed tasks yet' : 'No tasks here'} hint={tab === 'today' ? 'Add one above — try “Read chapter 3 by 6pm”.' : tab === 'overdue' ? 'You are on top of everything.' : undefined} icon={tab === 'overdue' ? 'sparkle' : 'inbox'} />
             : groups.map((g) => (
               <div key={g.key}>
-                <div className={`group-head ${g.overdue ? 'overdue' : ''}`}>{g.overdue && <Icon name="alert" />}{g.label}<span className="count">{g.tasks.length}</span></div>
+                <div className={`group-head ${g.overdue ? 'overdue' : ''}`}>{g.label}<span className="count">{g.tasks.length}</span></div>
                 <TaskList tasks={g.tasks} onReorder={(ids) => mutate(() => api.tasks.reorder(ids))} showDate={g.overdue || tab === 'all' || tab === 'unscheduled'} />
               </div>
             ))}

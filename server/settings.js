@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { db, getSettings, saveSettings, bad, oneOf, DEFAULT_SETTINGS } from './db.js';
+import { db, getSettings, saveSettings, bad, oneOf, text, DEFAULT_SETTINGS } from './db.js';
 import { nowLocal, today, isTime, isValidTimezone, applyTimezone } from './time.js';
 import { PRIORITIES } from './tasks.js';
 import * as notify from './notify.js';
@@ -49,7 +49,7 @@ const full = () => ({
     email_to: notify.emailConfigured() ? (process.env.EMAIL_TO || process.env.SMTP_USER) : null,
     whatsapp: notify.whatsappConfigured(),
     whatsapp_provider: notify.whatsappConfigured() ? process.env.WHATSAPP_PROVIDER : null,
-    whatsapp_to: notify.whatsappConfigured() ? process.env.WHATSAPP_TO : null,
+    whatsapp_to: process.env.WHATSAPP_TO || null, // shown even before a provider is configured
     desktop: process.platform === 'win32',
   },
   server: { now: nowLocal(), today: today(), timezone: process.env.TZ, platform: process.platform },
@@ -63,6 +63,34 @@ r.put('/', (req, res) => {
   const patch = validateSettings(req.body);
   saveSettings(patch);
   if (patch.timezone) applyTimezone(patch.timezone);
+  res.json(full());
+});
+
+/** Replace the activity-type list. Renamed types carry their tasks along; tasks of removed types fall back to "Other". */
+r.put('/activity-types', (req, res) => {
+  const list = req.body;
+  if (!Array.isArray(list) || !list.length) throw bad('Keep at least one activity type');
+  if (list.length > 40) throw bad('That is a lot of activity types — keep it under 40');
+  const seen = new Set();
+  const clean = list.map((t, i) => {
+    const name = text(t?.name, 40, 'Activity type name').trim();
+    if (!name) throw bad('Every activity type needs a name');
+    if (seen.has(name.toLowerCase())) throw bad(`"${name}" appears twice`);
+    seen.add(name.toLowerCase());
+    const color = /^#[0-9a-fA-F]{6}$/.test(t?.color || '') ? t.color.toLowerCase() : '#8a8699';
+    const id = typeof t?.id === 'string' && /^[\w-]{1,40}$/.test(t.id) ? t.id : `t${Date.now().toString(36)}${i}`;
+    return { id, name, color };
+  });
+  db.tx(() => {
+    for (const prev of getSettings().activity_types) {
+      const next = clean.find((t) => t.id === prev.id);
+      if (next && next.name !== prev.name) db.run('UPDATE tasks SET category = ? WHERE category = ?', next.name, prev.name);
+    }
+    const names = clean.map((t) => t.name);
+    const fallback = (clean.find((t) => t.name === 'Other') || clean[0]).name;
+    db.run(`UPDATE tasks SET category = ? WHERE category NOT IN (${names.map(() => '?').join(',')})`, fallback, ...names);
+    saveSettings({ activity_types: clean });
+  });
   res.json(full());
 });
 

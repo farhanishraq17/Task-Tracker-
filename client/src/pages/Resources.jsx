@@ -2,9 +2,14 @@ import { useEffect, useMemo, useState } from 'react';
 import { useApp, useData, useMutate } from '../store.jsx';
 import { api } from '../api.js';
 import { Icon, Modal, Field, Select, Empty, Menu, PRIORITIES, RESOURCE_CATEGORIES, RESOURCE_STATUSES } from '../components/ui.jsx';
-import { fmtShort } from '../lib/dates.js';
+import { PixelImage } from '../components/pixel.jsx';
 
 const catIcon = (c) => ({ Video: 'play', Playlist: 'layers', Paper: 'file', Documentation: 'book', Course: 'book', Blog: 'edit' }[c] || 'globe');
+
+function Thumb({ resource }) {
+  const [broken, setBroken] = useState(false);
+  return resource.thumbnail && !broken ? <PixelImage src={resource.thumbnail} alt="" onError={() => setBroken(true)} /> : <Icon name={catIcon(resource.category)} />;
+}
 
 function ResourceEditor({ resource, collections, onClose, defaults = {} }) {
   const mutate = useMutate();
@@ -45,7 +50,7 @@ function ResourceEditor({ resource, collections, onClose, defaults = {} }) {
         </div>
       </Field>
       <div className="row top" style={{ gap: 14 }}>
-        {f.thumbnail && <img src={f.thumbnail} alt="" style={{ width: 160, aspectRatio: '16/9', objectFit: 'cover', borderRadius: 8, flex: 'none', background: 'var(--surface-2)' }} onError={() => set({ thumbnail: null })} />}
+        {f.thumbnail && <div style={{ width: 160, aspectRatio: '16/9', flex: 'none', background: 'var(--surface-2)' }}><PixelImage src={f.thumbnail} alt="" onError={() => set({ thumbnail: null })} /></div>}
         <div className="stack grow" style={{ gap: 10 }}>
           <Field label="Title"><input className="input" value={f.title} onChange={(e) => set({ title: e.target.value })} placeholder="Title" /></Field>
           <Field label="Notes"><textarea className="input" rows={2} value={f.description} onChange={(e) => set({ description: e.target.value })} placeholder="Why it matters, what to look for…" /></Field>
@@ -89,13 +94,13 @@ export default function Resources() {
   return (
     <>
       <div className="page-head">
-        <div><h1>Resource Library</h1><div className="sub">Your learning backlog: videos, playlists, papers, articles and docs to come back to.</div></div>
+        <div><div className="lbl">Library</div><h1>Resource Library</h1><div className="sub">Videos, playlists, papers and articles to come back to.</div></div>
         <div className="actions"><button className="btn btn-primary" onClick={() => setEditing('new')}><Icon name="plus" />Save resource</button></div>
       </div>
       <div className="res-layout">
         <aside>
           <div className="side-list">
-            <button className={collection === '' ? 'active' : ''} onClick={() => setCollection('')}><span>All resources</span><span className="n">{data && !q && !status && !category && !tag && collection === '' ? data.length : ''}</span></button>
+            <button className={collection === '' ? 'active' : ''} onClick={() => setCollection('')}><span>All resources</span></button>
             <button className={collection === 'none' ? 'active' : ''} onClick={() => setCollection('none')}><span>Uncollected</span></button>
           </div>
           <div className="side-title">Collections</div>
@@ -110,7 +115,7 @@ export default function Resources() {
                 <Menu items={[{ label: 'Rename', icon: 'edit', onClick: () => setRenaming({ id: c.id, name: c.name }) }, { label: 'Delete collection', icon: 'trash', danger: true, confirm: true, onClick: () => mutate(() => api.collections.remove(c.id), 'Collection deleted (resources kept)').then(() => collection === String(c.id) && setCollection('')) }]} />
               </div>
             ))}
-            <div className="add-inline" style={{ padding: '4px 4px 0' }}><Icon name="plus" /><input value={newCol} onChange={(e) => setNewCol(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addCollection()} placeholder="New collection" aria-label="New collection name" /></div>
+            <div className="add-inline"><Icon name="plus" /><input value={newCol} onChange={(e) => setNewCol(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addCollection()} placeholder="New collection" aria-label="New collection name" /></div>
           </div>
           {tags?.length > 0 && (
             <>
@@ -122,7 +127,7 @@ export default function Resources() {
 
         <div>
           <div className="filters">
-            <div className="search grow" style={{ maxWidth: 320 }}><Icon name="search" /><input className="input" placeholder="Search title, notes, URL or tags…" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search resources" /></div>
+            <div className="search grow" style={{ maxWidth: 300 }}><Icon name="search" /><input className="input" placeholder="Search…" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search resources" /></div>
             <Select className="auto" value={status} onChange={setStatus} options={RESOURCE_STATUSES} placeholder="Any status" />
             <Select className="auto" value={category} onChange={setCategory} options={RESOURCE_CATEGORIES} placeholder="Any type" />
             {(q || status || category || tag) && <button className="btn btn-ghost btn-sm" onClick={() => { setQ(''); setStatus(''); setCategory(''); setTag(''); }}>Clear</button>}
@@ -132,10 +137,10 @@ export default function Resources() {
             <div className="card"><Empty icon="resources" title={total ? 'No matches' : 'Your library is empty'} hint={total ? 'Try different filters.' : 'Save a YouTube playlist, a paper or a tutorial you want to come back to.'}>{!total && <button className="btn btn-primary btn-sm" style={{ marginTop: 6 }} onClick={() => setEditing('new')}>Save your first resource</button>}</Empty></div>
           ) : (
             <div className={`res-grid ${loading ? 'fade' : ''}`}>
-              {data.map((r) => (
-                <div key={r.id} className={`res-card ${r.status === 'Completed' ? 'done' : ''}`}>
+              {data.map((r, i) => (
+                <div key={r.id} className={`res-card ${r.status === 'Completed' ? 'done' : ''}`} style={{ '--i': i % 12 }}>
                   <a className="res-thumb" href={r.url} target="_blank" rel="noreferrer" aria-label={`Open ${r.title}`}>
-                    {r.thumbnail ? <img src={r.thumbnail} alt="" loading="lazy" onError={(e) => { e.currentTarget.style.display = 'none'; }} /> : <Icon name={catIcon(r.category)} />}
+                    <Thumb resource={r} />
                     <span className="cat">{r.category}</span>
                   </a>
                   <div className="res-body">
@@ -145,9 +150,8 @@ export default function Resources() {
                     {r.tags.length > 0 && <div className="tagrow">{r.tags.map((t) => <button key={t} className={`tag clickable ${tag === t ? 'active' : ''}`} onClick={() => setTag(tag === t ? '' : t)}>{t}</button>)}</div>}
                     <div className="res-foot">
                       <Select className="sm auto" value={r.status} onChange={(v) => setStatusOf(r, v)} options={RESOURCE_STATUSES} aria-label="Status" />
-                      <span className="chip" title={`${r.priority} importance`}><i className={`dot prio-${r.priority}`} />{r.priority}</span>
+                      {(r.priority === 'Critical' || r.priority === 'High') && <Icon name="flag" className={`prio-${r.priority}`} title={`${r.priority} importance`} />}
                       <span className="grow" />
-                      <span className="muted small nowrap" title="Date added">{fmtShort(r.created_at.slice(0, 10))}</span>
                       <Menu items={[
                         { label: 'Edit', icon: 'edit', onClick: () => setEditing(r) },
                         { label: 'Open link', icon: 'external', onClick: () => window.open(r.url, '_blank', 'noopener') },

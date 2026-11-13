@@ -4,6 +4,7 @@ import { api } from '../api.js';
 import { Icon, Modal, Field, Select, Empty, Confirm, PROJECT_STATUSES, PROJECT_COLORS } from '../components/ui.jsx';
 import TaskList from '../components/TaskList.jsx';
 import QuickAdd from '../components/QuickAdd.jsx';
+import { PixelImage } from '../components/pixel.jsx';
 import { relDate, fmtShort, daysBetween } from '../lib/dates.js';
 
 const statusChip = (s) => ({ Active: 'accent', 'On Hold': 'soon', Completed: 'success', Archived: '' }[s] || '');
@@ -138,7 +139,7 @@ export function ProjectDetail({ id }) {
             <div className="card-head"><h2><Icon name="resources" />Linked resources</h2><a href="#/resources" className="small">Library</a></div>
             {p.resources.length ? p.resources.map((r) => (
               <a key={r.id} className="res-mini" href={r.url} target="_blank" rel="noreferrer" style={{ color: 'inherit' }}>
-                <div className="thumb">{r.thumbnail ? <img src={r.thumbnail} alt="" loading="lazy" /> : <Icon name="globe" />}</div>
+                <div className="thumb">{r.thumbnail ? <PixelImage src={r.thumbnail} pixels={48} /> : <Icon name="globe" />}</div>
                 <div className="grow"><div className="t">{r.title}</div><div className="s">{r.status} · {r.category}</div></div>
               </a>
             )) : <span className="muted small">Link a resource to this project from the Resource Library.</span>}

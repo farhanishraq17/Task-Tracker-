@@ -79,6 +79,7 @@ test('validation: bad input gets a 400 with a readable message', async () => {
   assert.equal(r.status, 400);
   assert.match(r.body.error, /due_at/);
   assert.equal((await api('POST', '/api/tasks', { title: 'x', priority: 'Urgent' })).status, 400);
+  assert.equal((await api('POST', '/api/tasks', { title: 'x', category: 'Nope' })).status, 400);
   assert.equal((await api('POST', '/api/resources', { url: 'not a url' })).status, 400);
   assert.equal((await api('PUT', '/api/settings', { timezone: 'Mars/Olympus' })).status, 400);
   assert.equal((await api('GET', '/api/nope')).status, 404);
@@ -259,9 +260,31 @@ test('backup, list, restore, refuse garbage', async () => {
   assert.equal((await api('GET', '/api/tasks')).body.length, count, 'database untouched after refused restore');
 });
 
+test('activity types: add, rename migrates tasks, delete reassigns, validation', async () => {
+  const types = (await api('GET', '/api/settings')).body.activity_types;
+  assert.ok(types.length >= 6);
+  const task = await api('POST', '/api/tasks', { title: 'Typed', category: 'Research' });
+  const research = types.find((x) => x.name === 'Research');
+  const edited = types.filter((x) => x.id !== 'personal').map((x) => (x.id === research.id ? { ...x, name: 'Lab work' } : x));
+  const u = await api('PUT', '/api/settings/activity-types', [...edited, { name: 'Thesis', color: '#123456' }]);
+  assert.equal(u.status, 200);
+  assert.ok(u.body.activity_types.some((x) => x.name === 'Thesis' && x.color === '#123456' && x.id));
+  assert.equal((await api('GET', `/api/tasks/${task.body.id}`)).body.category, 'Lab work', 'rename carries tasks along');
+  const thesisTask = await api('POST', '/api/tasks', { title: 'Chapter 2', category: 'Thesis' });
+  await api('PUT', '/api/settings/activity-types', u.body.activity_types.filter((x) => x.name !== 'Thesis'));
+  assert.equal((await api('GET', `/api/tasks/${thesisTask.body.id}`)).body.category, 'Other', 'removed type falls back to Other');
+  assert.equal((await api('POST', '/api/tasks', { title: 'x', category: 'Thesis' })).status, 400);
+  assert.equal((await api('PUT', '/api/settings/activity-types', [])).status, 400);
+  assert.equal((await api('PUT', '/api/settings/activity-types', [{ name: 'A', color: '#000000' }, { name: 'a', color: '#000000' }])).status, 400);
+  // imported tasks with unknown types get those types created rather than rejected
+  const imp = await api('POST', '/api/data/import', { tasks: [{ title: 'Imported typed', category: 'Fieldwork', created_at: '2021-01-01T09:00' }] });
+  assert.equal(imp.body.tasks, 1);
+  assert.ok((await api('GET', '/api/settings')).body.activity_types.some((x) => x.name === 'Fieldwork'));
+});
+
 test('settings: defaults, update, integration status, notification log', async () => {
   const s = await api('GET', '/api/settings');
-  assert.equal(s.body.timezone, 'Asia/Dhaka');
+  assert.equal(s.body.timezone, Intl.DateTimeFormat().resolvedOptions().timeZone, 'defaults to the device timezone');
   assert.equal(s.body.integrations.email, false);
   assert.ok(s.body.server.today);
   const u = await api('PUT', '/api/settings', { display_name: 'Alex', weekly_goal: 30, theme: 'dark', default_reminders: [60, 0, -60] });
