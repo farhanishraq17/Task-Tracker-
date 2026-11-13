@@ -224,6 +224,34 @@ test('reminder engine: fires once per offset+channel, dedupes, re-arms on resche
   assert.equal(rows().length, 3, 'completed tasks never fire');
 });
 
+test('scheduled reminders: daily fires once per time, weekly only on its weekday, validation', async () => {
+  const now = new Date();
+  now.setSeconds(0, 0);
+  const slot = new Date(now.getTime() + 2 * 60000); // a slot after the task is created
+  const hhmm = toLocal(slot).slice(11);
+  const dow = slot.getDay();
+  const earlier = toLocal(new Date(now.getTime() - 30 * 60000)).slice(11); // already passed today: must not fire
+  const t = await api('POST', '/api/tasks', { title: 'Hydrate', schedules: [{ type: 'daily', times: [hhmm, earlier] }, { type: 'weekly', weekday: dow, time: hhmm }, { type: 'weekly', weekday: (dow + 1) % 7, time: hhmm }] });
+  assert.equal(t.status, 201);
+  assert.equal(t.body.schedules.length, 3);
+  const keys = () => db.all('SELECT reminder_key FROM notification_log WHERE task_id = ? ORDER BY id', t.body.id).map((r) => r.reminder_key);
+  await tick(now);
+  assert.deepEqual(keys(), [], 'nothing due yet');
+  const later = new Date(slot.getTime() + 60000);
+  await tick(later);
+  assert.deepEqual([...keys()].sort(), [`daily|${toLocal(slot)}`, `weekly|${toLocal(slot)}`]);
+  await tick(later);
+  assert.equal(keys().length, 2, 'no duplicates on the next tick');
+  await api('PATCH', `/api/tasks/${t.body.id}`, { status: 'Completed' });
+  await tick(new Date(later.getTime() + 60000));
+  assert.equal(keys().length, 2, 'completed tasks stop reminding');
+  assert.equal((await api('POST', '/api/tasks', { title: 'x', schedules: [{ type: 'daily', times: [] }] })).status, 400);
+  assert.equal((await api('POST', '/api/tasks', { title: 'x', schedules: [{ type: 'weekly', weekday: 9, time: '09:00' }] })).status, 400);
+  assert.equal((await api('POST', '/api/tasks', { title: 'x', schedules: [{ type: 'monthly' }] })).status, 400);
+  const cleared = await api('PATCH', `/api/tasks/${t.body.id}`, { schedules: [] });
+  assert.deepEqual(cleared.body.schedules, []);
+});
+
 test('export/import: re-importing an export adds nothing; new rows merge; invalid rows roll back', async () => {
   const exp = await api('GET', '/api/data/export.json');
   assert.equal(exp.status, 200);

@@ -304,6 +304,14 @@ select.input.auto { width: auto; }
 .add-inline input { flex: 1; border: 0; background: none; outline: none; padding: 6px; }
 .add-inline input:focus { background: var(--surface-2); }
 .chips-edit { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.reminders { display: flex; flex-direction: column; }
+.rem-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 0; }
+.rem-row + .rem-row { border-top: 2px dotted var(--line); }
+.rem-row.add { padding-top: 10px; }
+.rem-kind { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; font-size: 13px; min-width: 128px; }
+.rem-kind .icon { width: 12px; height: 12px; color: var(--accent); }
+.rem-add { display: inline-flex; align-items: center; gap: 6px; }
+.rem-add .input { width: 112px; }
 .weekdays { display: flex; gap: 4px; }
 .weekdays button { width: 32px; height: 28px; border: 2px solid var(--line); background: var(--surface); font-size: 12px; font-weight: 700; color: var(--ink-2); }
 .weekdays button.on { background: var(--accent); border-color: var(--accent); color: #fff; }

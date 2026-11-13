@@ -45,6 +45,7 @@ CREATE TABLE IF NOT EXISTS tasks (
   project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL,
   recurrence TEXT,
   reminders TEXT,
+  schedules TEXT,
   links TEXT NOT NULL DEFAULT '[]',
   notify_whatsapp INTEGER NOT NULL DEFAULT 0,
   sort_order INTEGER NOT NULL DEFAULT 0,
@@ -117,6 +118,9 @@ function open() {
   const c = new DatabaseSync(DB_PATH);
   c.exec('PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;');
   c.exec(SCHEMA);
+  // Migrations for databases created by earlier versions.
+  const taskCols = c.prepare('PRAGMA table_info(tasks)').all().map((r) => r.name);
+  if (!taskCols.includes('schedules')) c.exec('ALTER TABLE tasks ADD COLUMN schedules TEXT');
   return c;
 }
 

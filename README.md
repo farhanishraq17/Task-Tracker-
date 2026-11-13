@@ -143,7 +143,8 @@ Any other SMTP provider (Outlook, university mail, Fastmail…) works the same w
 ## How reminders work
 
 * The **reminder engine** runs inside the server process and checks every 30 seconds. It does not need the dashboard to be open.
-* Every task with a **deadline** gets reminders at its offsets (its own list, or the defaults from Settings). `0` = at the deadline; negative offsets = after the deadline while the task is still incomplete ("you are falling behind").
+* **Daily reminders** ping you at one or more chosen times every day while the task is open; **weekly reminders** fire once a week on a chosen weekday and time. Add them from the task's *Reminders → + Add reminder* menu.
+* Every task with a **deadline** also gets reminders at its offsets (its own list, or the defaults from Settings). `0` = at the deadline; negative offsets = after the deadline while the task is still incomplete ("you are falling behind").
 * Tasks with a **start time** get a "Starting now" reminder.
 * The optional **morning digest** (Settings → Notifications) summarises today's tasks and anything overdue.
 * **Channels**

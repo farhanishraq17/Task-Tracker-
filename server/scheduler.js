@@ -2,7 +2,7 @@
 // Idempotency: every (task, reminder_key, channel) is recorded in notification_log, so nothing is sent twice.
 // Reminder keys embed the deadline, so rescheduling a task naturally re-arms its reminders.
 import { db, getSettings, saveSettings } from './db.js';
-import { toDate, toLocal, parseLocal, fmtDateTime } from './time.js';
+import { toDate, toLocal, parseLocal, fmtDateTime, addDays } from './time.js';
 import { TASK_DATE, TASK_ORDER, OVERDUE } from './tasks.js';
 import { createBackup, pruneBackups } from './data.js';
 import * as notify from './notify.js';
@@ -84,7 +84,7 @@ export async function tick(now = new Date()) {
     const isHandled = (task_id, key) => [...CHANNELS, 'all'].some((ch) => handled.has(`${task_id}|${key}|${ch}`));
 
     const tasks = db.all(`SELECT t.*, p.name AS project_name FROM tasks t LEFT JOIN projects p ON p.id = t.project_id
-      WHERE t.status != 'Completed' AND (t.due_at IS NOT NULL OR (t.scheduled_date IS NOT NULL AND t.start_time IS NOT NULL))`);
+      WHERE t.status != 'Completed' AND (t.due_at IS NOT NULL OR (t.scheduled_date IS NOT NULL AND t.start_time IS NOT NULL) OR t.schedules IS NOT NULL)`);
 
     for (const t of tasks) {
       const url = `${baseUrl()}/#/tasks?task=${t.id}`;
@@ -108,6 +108,22 @@ export async function tick(now = new Date()) {
           const key = `start|${startStr}`;
           if (nowMs - startMs > GRACE_MS) { if (!isHandled(t.id, key)) markSkipped(t.id, key, staleReason(t, startMs), t.title); }
           else await dispatch({ task_id: t.id, key, title: `Starting now: ${t.title}`, body: `Scheduled ${t.start_time} · ${meta}`, url, whatsapp: !!t.notify_whatsapp }, s, handled);
+        }
+      }
+      // Daily / weekly schedules: every slot of yesterday and today that has come due while the task is open.
+      let schedules = [];
+      try { schedules = t.schedules ? JSON.parse(t.schedules) : []; } catch { /* ignore corrupt value */ }
+      for (const sch of schedules) {
+        for (const day of [addDays(todayStr, -1), todayStr]) {
+          const times = sch.type === 'daily' ? sch.times : parseLocal(day).getDay() === sch.weekday ? [sch.time] : [];
+          for (const time of times) {
+            const slot = `${day}T${time}`;
+            const fireAt = parseLocal(slot).getTime();
+            if (fireAt > nowMs || fireAt < parseLocal(t.created_at).getTime()) continue; // future, or before the task existed
+            const key = `${sch.type}|${slot}`;
+            if (nowMs - fireAt > GRACE_MS) { if (!isHandled(t.id, key)) markSkipped(t.id, key, staleReason(t, fireAt), t.title); continue; }
+            await dispatch({ task_id: t.id, key, title: `${sch.type === 'daily' ? 'Daily' : 'Weekly'} reminder: ${t.title}`, body: `${meta}${t.due_at ? ` · due ${fmtDateTime(t.due_at)}` : ''}`, url, whatsapp: !!t.notify_whatsapp }, s, handled);
+          }
         }
       }
     }

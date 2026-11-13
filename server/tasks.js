@@ -17,7 +17,7 @@ export const TASK_ORDER = `ORDER BY (t.status = 'Completed'), ${TASK_DATE} IS NU
 export const OVERDUE = "t.status != 'Completed' AND COALESCE(t.due_at, t.scheduled_date || 'T23:59', '9999') < ?";
 
 const COLS = ['title', 'notes', 'scheduled_date', 'start_time', 'due_at', 'priority', 'category', 'status', 'project_id',
-  'recurrence', 'reminders', 'links', 'notify_whatsapp', 'sort_order', 'completed_at', 'created_at', 'updated_at'];
+  'recurrence', 'reminders', 'schedules', 'links', 'notify_whatsapp', 'sort_order', 'completed_at', 'created_at', 'updated_at'];
 
 /** Attach subtasks/attachments and parse JSON columns. Mutates and returns the rows. */
 export function hydrate(tasks) {
@@ -30,6 +30,7 @@ export function hydrate(tasks) {
     t.attachments = [];
     t.links = parseJson(t.links, []);
     t.reminders = parseJson(t.reminders, null);
+    t.schedules = parseJson(t.schedules, []);
     t.recurrence = parseJson(t.recurrence, null);
     t.notify_whatsapp = !!t.notify_whatsapp;
     by.set(t.id, t);
@@ -57,6 +58,7 @@ const toRow = (t, overrides = {}) => ({
   ...t,
   recurrence: t.recurrence ? JSON.stringify(t.recurrence) : null,
   reminders: t.reminders ? JSON.stringify(t.reminders) : null,
+  schedules: t.schedules?.length ? JSON.stringify(t.schedules) : null,
   links: JSON.stringify(t.links ?? []),
   notify_whatsapp: t.notify_whatsapp ? 1 : 0,
   ...overrides,
@@ -89,6 +91,26 @@ export function cleanRecurrence(r) {
   if (freq === 'weekly') out.weekdays = [...new Set((Array.isArray(r.weekdays) ? r.weekdays : []).map(Number).filter((d) => Number.isInteger(d) && d >= 0 && d <= 6))].sort();
   if (freq === 'custom') out.unit = oneOf(r.unit || 'days', ['days', 'weeks', 'months'], 'Recurrence unit');
   return out;
+}
+
+/** Schedule-based reminders: { type: 'daily', times: ['09:00', ...] } or { type: 'weekly', weekday: 0-6, time: 'HH:MM' }. */
+export function cleanSchedules(list) {
+  if (!Array.isArray(list) || list.length > 10) throw bad('Reminder schedules must be a list of up to 10 entries');
+  return list.map((s) => {
+    if (s?.type === 'daily') {
+      const times = [...new Set((Array.isArray(s.times) ? s.times : []).filter(isTime))].sort();
+      if (!times.length) throw bad('A daily reminder needs at least one time (HH:MM)');
+      if (times.length > 12) throw bad('A daily reminder can have at most 12 times');
+      return { type: 'daily', times };
+    }
+    if (s?.type === 'weekly') {
+      const weekday = Number(s.weekday);
+      if (!Number.isInteger(weekday) || weekday < 0 || weekday > 6) throw bad('A weekly reminder needs a weekday (0 = Sunday … 6 = Saturday)');
+      if (!isTime(s.time)) throw bad('A weekly reminder needs a time (HH:MM)');
+      return { type: 'weekly', weekday, time: s.time };
+    }
+    throw bad('Reminder type must be "daily" or "weekly"');
+  });
 }
 
 /** Validate/coerce a request body into column values. Unknown keys are ignored. */
@@ -133,6 +155,9 @@ export function clean(body, { create = false } = {}) {
       }
       out.reminders = JSON.stringify([...new Set(body.reminders)].sort((a, b) => b - a));
     }
+  }
+  if ('schedules' in body) {
+    out.schedules = body.schedules == null || (Array.isArray(body.schedules) && !body.schedules.length) ? null : JSON.stringify(cleanSchedules(body.schedules));
   }
   if ('links' in body) {
     if (!Array.isArray(body.links) || body.links.length > 30) throw bad('Links must be a list (max 30)');

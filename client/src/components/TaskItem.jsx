@@ -52,8 +52,11 @@ export default function TaskItem({ task, showDate = true, compact = false, dragP
   else if (showDate && dateStr) { when = relDate(dateStr, td); whenClass = dateStr < td && !done ? 'late' : ''; }
 
   const subDone = task.subtasks.filter((s) => s.done).length;
+  const WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const reminders = (task.schedules || []).map((s) => (s.type === 'daily' ? `daily ${s.times.map(fmtTime).join(', ')}` : `${WD[s.weekday]} ${fmtTime(s.time)} weekly`));
   const meta = [
     task.project_name,
+    reminders.length ? `reminds ${reminders.join(' · ')}` : null,
     task.subtasks.length ? `${subDone}/${task.subtasks.length} steps` : null,
     task.status === 'In Progress' ? 'in progress' : null,
     task.recurrence ? 'repeats' : null,

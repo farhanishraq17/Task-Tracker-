@@ -2,7 +2,75 @@ import { useEffect, useState } from 'react';
 import { Modal, Field, Select, Icon, Confirm, PRIORITIES, STATUSES } from './ui.jsx';
 import { useApp, useMutate } from '../store.jsx';
 import { api } from '../api.js';
-import { relDate, fmtBytes, offsetLabel, REMINDER_PRESETS } from '../lib/dates.js';
+import { relDate, fmtBytes, fmtTime, fromYmd, offsetLabel, REMINDER_PRESETS } from '../lib/dates.js';
+
+const WEEKDAYS = [[1, 'Monday'], [2, 'Tuesday'], [3, 'Wednesday'], [4, 'Thursday'], [5, 'Friday'], [6, 'Saturday'], [0, 'Sunday']];
+
+/**
+ * Reminder editor: daily schedules (one or more times), weekly schedules (one weekday + time),
+ * and the before-deadline offsets (defaults from Settings unless customised).
+ */
+function Reminders({ form, set, settings, today }) {
+  const schedules = form.schedules || [];
+  const offsets = form.reminders ?? settings?.default_reminders ?? [];
+  const usingDefaults = form.reminders == null;
+  const setSched = (list) => set({ schedules: list });
+  const update = (i, patch) => setSched(schedules.map((s, j) => (j === i ? { ...s, ...patch } : s)));
+  const remove = (i) => setSched(schedules.filter((_, j) => j !== i));
+  const add = (v) => {
+    if (v === 'daily') setSched([...schedules, { type: 'daily', times: ['09:00'] }]);
+    else if (v === 'weekly') setSched([...schedules, { type: 'weekly', weekday: fromYmd(today).getDay(), time: '09:00' }]);
+    else if (v) set({ reminders: [...new Set([...offsets, Number(v)])].sort((a, b) => b - a) });
+  };
+  const showDeadlineRow = form.due_at && (offsets.length > 0 || !usingDefaults);
+  return (
+    <div className="reminders">
+      {schedules.map((s, i) => (
+        <div className="rem-row" key={i}>
+          {s.type === 'daily' ? (
+            <>
+              <span className="rem-kind"><Icon name="bell" />Daily at</span>
+              {s.times.map((t) => (
+                <span className="chip accent" key={t}>{fmtTime(t)}{s.times.length > 1 && <button type="button" onClick={() => update(i, { times: s.times.filter((x) => x !== t) })} aria-label={`Remove ${fmtTime(t)}`}><Icon name="x" /></button>}</span>
+              ))}
+              <label className="rem-add"><span className="muted small">+ time</span><input type="time" className="input sm" value="" onChange={(e) => e.target.value && update(i, { times: [...new Set([...s.times, e.target.value])].sort() })} aria-label="Add another time" /></label>
+            </>
+          ) : (
+            <>
+              <span className="rem-kind"><Icon name="bell" />Weekly on</span>
+              <Select className="sm auto" value={s.weekday} onChange={(v) => update(i, { weekday: Number(v) })} options={WEEKDAYS} aria-label="Weekday" />
+              <span className="muted small">at</span>
+              <input type="time" className="input sm" style={{ width: 120 }} value={s.time} onChange={(e) => e.target.value && update(i, { time: e.target.value })} aria-label="Time" />
+            </>
+          )}
+          <span className="grow" />
+          <button type="button" className="icon-btn sm danger" onClick={() => remove(i)} aria-label="Remove reminder"><Icon name="x" /></button>
+        </div>
+      ))}
+      {showDeadlineRow && (
+        <div className="rem-row">
+          <span className="rem-kind"><Icon name="flag" />Before deadline</span>
+          {offsets.map((m) => <span key={m} className="chip">{offsetLabel(m)}<button type="button" onClick={() => set({ reminders: offsets.filter((x) => x !== m) })} aria-label={`Remove ${offsetLabel(m)}`}><Icon name="x" /></button></span>)}
+          {!offsets.length && <span className="muted small">none</span>}
+          {usingDefaults ? <span className="muted small">(your defaults)</span> : <button type="button" className="btn btn-ghost btn-sm" onClick={() => set({ reminders: null })}>Reset to defaults</button>}
+        </div>
+      )}
+      <div className="rem-row add">
+        <select className="input sm auto" value="" onChange={(e) => add(e.target.value)} aria-label="Add a reminder">
+          <option value="">+ Add reminder</option>
+          <optgroup label="Schedule">
+            <option value="daily">Daily — at one or more times</option>
+            <option value="weekly">Weekly — one day and time</option>
+          </optgroup>
+          <optgroup label={form.due_at ? 'Before the deadline' : 'Before the deadline (set a deadline first)'} disabled={!form.due_at}>
+            {REMINDER_PRESETS.filter((p) => !offsets.includes(p)).map((p) => <option key={p} value={p}>{offsetLabel(p)}</option>)}
+          </optgroup>
+        </select>
+        {!schedules.length && !showDeadlineRow && <span className="muted small">No reminders yet.</span>}
+      </div>
+    </div>
+  );
+}
 
 const PRIO_RANK = { Critical: 0, High: 1, Medium: 2, Low: 3 };
 
@@ -28,7 +96,7 @@ export function ReminderChips({ value, defaults = [], onChange, allowDefault = t
 const blank = (draft, settings) => ({
   title: '', notes: '', scheduled_date: null, start_time: null, due_at: null, priority: settings?.default_priority || 'Medium',
   category: (settings?.activity_types || []).find((t) => t.name === 'Other')?.name || settings?.activity_types?.[0]?.name || 'Other',
-  status: 'Not Started', project_id: null, recurrence: null, reminders: null, links: [], notify_whatsapp: null, subtasks: [], attachments: [], ...draft,
+  status: 'Not Started', project_id: null, recurrence: null, reminders: null, schedules: [], links: [], notify_whatsapp: null, subtasks: [], attachments: [], ...draft,
 });
 
 export default function TaskEditor({ target, onClose }) {
@@ -56,7 +124,7 @@ export default function TaskEditor({ target, onClose }) {
     const body = {
       title: form.title.trim(), notes: form.notes, scheduled_date: form.scheduled_date, start_time: form.start_time, due_at: form.due_at,
       priority: form.priority, category: form.category, status: form.status, project_id: form.project_id, recurrence: form.recurrence,
-      reminders: form.reminders, links: form.links,
+      reminders: form.reminders, schedules: form.schedules || [], links: form.links,
       subtasks: form.subtasks.map((s) => ({ id: s.id > 0 ? s.id : undefined, title: s.title, done: s.done })),
     };
     if (form.notify_whatsapp !== null) body.notify_whatsapp = form.notify_whatsapp;
@@ -136,8 +204,8 @@ export default function TaskEditor({ target, onClose }) {
           </div>
         )}
 
-        <Field label="Reminders" hint={form.due_at ? 'Relative to the deadline. Negative offsets fire after it if the task is still open.' : 'Set a deadline to receive reminders.'}>
-          <ReminderChips value={form.reminders} defaults={settings?.default_reminders || []} onChange={(v) => set({ reminders: v })} />
+        <Field label="Reminders" hint="Daily and weekly reminders repeat while the task is open. Deadline reminders fire relative to the deadline.">
+          <Reminders form={form} set={set} settings={settings} today={today()} />
         </Field>
         <label className="checkline">
           <input type="checkbox" checked={form.notify_whatsapp ?? whatsappDefault} onChange={(e) => set({ notify_whatsapp: e.target.checked })} />
