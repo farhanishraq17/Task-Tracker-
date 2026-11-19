@@ -59,9 +59,18 @@ function Shell() {
   if (path.startsWith('/projects/')) page = <ProjectDetail id={Number(path.split('/')[2])} />;
   else page = { '/': <Home />, '/dashboard': <Dashboard />, '/tasks': <Tasks />, '/calendar': <Calendar />, '/projects': <Projects />, '/resources': <Resources />, '/insights': <Insights />, '/settings': <Settings /> }[path] || <Home />;
 
+  // Read the live attribute at click time: it is stamped in an effect, so a render-time read can be one step stale.
+  const toggleTheme = async () => {
+    const dark = document.documentElement.dataset.theme === 'dark';
+    try { await api.settings.update({ theme: dark ? 'light' : 'dark' }); await reloadSettings(); } catch { /* offline: ignore */ }
+  };
+
   return (
     <div className="app">
-      <Sidebar path={path} settings={settings} reloadSettings={reloadSettings} />
+      <button className="theme-toggle" onClick={toggleTheme} title="Switch light / dark theme" aria-label="Toggle theme">
+        <Icon name="sun" className="sun" /><Icon name="moon" className="moon" /><i />
+      </button>
+      <Sidebar path={path} settings={settings} />
       <main className="main" key={path.split('/')[1] || 'home'}>
         {error && <div className="error-box" style={{ marginBottom: 16 }}>{error} — start the server with <code>npm start</code> (or start.bat) and reload.</div>}
         {page}
@@ -72,11 +81,7 @@ function Shell() {
   );
 }
 
-function Sidebar({ path, settings, reloadSettings }) {
-  const dark = document.documentElement.dataset.theme === 'dark';
-  const toggleTheme = async () => {
-    try { await api.settings.update({ theme: dark ? 'light' : 'dark' }); await reloadSettings(); } catch { /* offline: ignore */ }
-  };
+function Sidebar({ path, settings }) {
   return (
     <aside className="sidebar">
       <a className="brand" href="#/"><Sprite rows={LOGO} size={28} className="logo" title="Command Center" /><span>Command<br />Center</span></a>
@@ -89,9 +94,6 @@ function Sidebar({ path, settings, reloadSettings }) {
       </nav>
       <div className="sidebar-foot">
         <span className="tz">{settings?.timezone || ''}</span>
-        <button className="icon-btn" onClick={toggleTheme} title={dark ? 'Switch to light theme' : 'Switch to dark theme'} aria-label="Toggle theme">
-          <Icon name={dark ? 'sun' : 'moon'} />
-        </button>
       </div>
     </aside>
   );
